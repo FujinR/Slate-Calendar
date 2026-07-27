@@ -1,7 +1,7 @@
 import { DEMO_MODE, getFirebase } from './firebase-config.js';
 import { OWNER_UID } from './site-config.js';
 import { DEMO_OWNER, DEMO_PARTNER, DEMO_REQUESTS } from './demo-data.js';
-import { DAY_KEYS, DAY_LABELS, getBusyIntervalsForDate, getFreeIntervalsForDate, getMutualFreeForDate, applyTravelBuffer, formatDate, minutesToLabel } from './schedule-utils.js';
+import { DAY_KEYS, DAY_LABELS, getBusyIntervalsForDate, getFreeIntervalsForDate, getMutualFreeForDate, applyTravelBuffer, formatDate, minutesToLabel, timeToMin } from './schedule-utils.js';
 import { startOfWeek, buildWeekDates, renderWeekTimelines, renderHourTicks, weekRangeLabel } from './timeline-view.js';
 
 let currentUid = null;
@@ -177,6 +177,14 @@ function openShiftModal(date, seg) {
   const dateStr = formatDate(date);
   const root = document.getElementById('modalRoot');
 
+  // Overrides overlapping [rangeStart, rangeEnd) on this date, of the given type. Used so
+  // adding a shift removes any conflicting "available" hole (instead of the hole silently
+  // cancelling the new busy time back out), and so freeing a shift removes the override that
+  // caused it (instead of stacking a second, competing override on top).
+  const overlappingOverrides = (type, rangeStart, rangeEnd) => myDoc.overrides.filter(o =>
+    o.date === dateStr && o.type === type && timeToMin(o.start) < rangeEnd && timeToMin(o.end) > rangeStart);
+  const removeOverrides = toRemove => { myDoc.overrides = myDoc.overrides.filter(o => !toRemove.includes(o)); };
+
   if (seg.type === 'free') {
     root.innerHTML = `
       <div class="modal-backdrop" id="backdrop">
@@ -204,6 +212,9 @@ function openShiftModal(date, seg) {
       const fd = new FormData(e.target);
       const start = fd.get('start'), end = fd.get('end');
       if (start >= end) { showToast('End time must be after start time.'); return; }
+      // Clear any "available" overrides covering this range first, so a previous "mark as
+      // free" here doesn't immediately cancel the shift being added right back out.
+      removeOverrides(overlappingOverrides('available', timeToMin(start), timeToMin(end)));
       myDoc.overrides.push({ date: dateStr, type: 'busy', start, end, label: (fd.get('label') || '').trim() });
       root.innerHTML = '';
       renderMyScheduleTimeline();
@@ -227,7 +238,16 @@ function openShiftModal(date, seg) {
     document.getElementById('cancelBtn').addEventListener('click', () => (root.innerHTML = ''));
     document.getElementById('backdrop').addEventListener('click', e => { if (e.target.id === 'backdrop') root.innerHTML = ''; });
     document.getElementById('freeBtn').addEventListener('click', () => {
-      myDoc.overrides.push({ date: dateStr, type: 'available', start: rawTimeStr(seg.start), end: rawTimeStr(seg.end), label: '' });
+      // If this busy time came from one or more "busy" overrides (e.g. a shift added via
+      // "Add a shift"), just remove them — same as the Remove button in the entries list.
+      // Otherwise it's coming from the recurring weekly pattern, which can only be cancelled
+      // for this one date with an "available" override.
+      const causingBusyOverrides = overlappingOverrides('busy', seg.start, seg.end);
+      if (causingBusyOverrides.length) {
+        removeOverrides(causingBusyOverrides);
+      } else {
+        myDoc.overrides.push({ date: dateStr, type: 'available', start: rawTimeStr(seg.start), end: rawTimeStr(seg.end), label: '' });
+      }
       root.innerHTML = '';
       renderMyScheduleTimeline();
       renderOverridesList();
