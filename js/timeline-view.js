@@ -29,7 +29,8 @@ const BG_VAR_BY_TYPE = { busy: '--busy-bg', free: '--free-bg', mutual: '--mutual
 // gradient has no seams to show through.
 function segmentsToGradient(segments) {
   const stops = segments.map(seg => {
-    const color = `var(${BG_VAR_BY_TYPE[seg.type] || '--busy-bg'})`;
+    const bgVar = seg.category === 'work' ? '--work-bg' : (BG_VAR_BY_TYPE[seg.type] || '--busy-bg');
+    const color = `var(${bgVar})`;
     const startPct = (seg.start / 1440) * 100;
     const endPct = (seg.end / 1440) * 100;
     return `${color} ${startPct}% ${endPct}%`;
@@ -79,7 +80,7 @@ export function renderWeekTimelines(container, days, { onSegmentClick, clickable
 
     for (const seg of day.segments) {
       const el = document.createElement('div');
-      el.className = `seg ${seg.type}`;
+      el.className = `seg ${seg.type}${seg.category ? ' ' + seg.category : ''}`;
       el.style.left = `${(seg.start / 1440) * 100}%`;
       el.style.width = `${((seg.end - seg.start) / 1440) * 100}%`;
       const endLabel = seg.end >= 1440 ? '11:59PM' : minutesToLabel(seg.end);
