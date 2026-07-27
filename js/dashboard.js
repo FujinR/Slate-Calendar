@@ -75,6 +75,7 @@ function renderWeeklyEditor() {
         <span>to</span>
         <input type="time" class="b-end" value="${b.end}" style="width:110px" />
         <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="b-next" ${b.endNextDay ? 'checked' : ''}/> ends next day</label>
+        <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" class="b-work" ${b.category === 'work' ? 'checked' : ''}/> work shift</label>
         <input class="b-label grow" placeholder="label" value="${b.label || ''}" maxlength="30" />
         <button class="btn danger small b-del" type="button">Remove</button>
       </div>`).join('');
@@ -108,6 +109,10 @@ function renderWeeklyEditor() {
     row.querySelector('.b-start').addEventListener('change', e => { block.start = e.target.value; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
     row.querySelector('.b-end').addEventListener('change', e => { block.end = e.target.value; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
     row.querySelector('.b-next').addEventListener('change', e => { block.endNextDay = e.target.checked; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
+    row.querySelector('.b-work').addEventListener('change', e => {
+      if (e.target.checked) block.category = 'work'; else delete block.category;
+      saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline();
+    });
     row.querySelector('.b-label').addEventListener('change', e => { block.label = e.target.value; saveMyDoc(); });
   });
 }
@@ -120,11 +125,16 @@ function renderOverridesList() {
     container.innerHTML = '<div class="empty-state">No exceptions added</div>';
     return;
   }
-  container.innerHTML = overrides.map((o, i) => `
+  container.innerHTML = overrides.map((o, i) => {
+    const dot = o.type === 'busy' ? `<span class="swatch ${o.category === 'work' ? 'work' : 'busy'}" style="margin-right:2px"></span>` : '';
+    const typeLabel = o.type === 'busy' ? (o.category === 'work' ? 'Work' : 'Busy') : 'Available';
+    const nextDay = o.endNextDay ? ' (ends next day)' : '';
+    return `
     <div class="block-row">
-      <span class="grow">${o.date} · ${o.type === 'busy' ? 'Busy' : 'Available'} ${o.start}–${o.end}${o.label ? ' · ' + o.label : ''}</span>
+      <span class="grow">${dot}${o.date} · ${typeLabel} ${o.start}–${o.end}${nextDay}${o.label ? ' · ' + o.label : ''}</span>
       <button class="btn danger small" type="button" data-real-idx="${myDoc.overrides.indexOf(o)}">Remove</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   container.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
     myDoc.overrides.splice(Number(btn.dataset.realIdx), 1);
     renderOverridesList();
@@ -134,17 +144,29 @@ function renderOverridesList() {
   }));
 }
 
+// "Ends next day" and "Work shift" only make sense for busy entries — hide them otherwise.
+document.querySelector('#overrideForm select[name=type]').addEventListener('change', e => {
+  const isBusy = e.target.value === 'busy';
+  document.getElementById('ovEndNextDay').closest('label').style.display = isBusy ? 'flex' : 'none';
+  document.getElementById('ovWorkLabel').style.display = isBusy ? 'flex' : 'none';
+});
+
 document.getElementById('overrideForm').addEventListener('submit', e => {
   e.preventDefault();
   const fd = new FormData(e.target);
+  const type = fd.get('type');
   const start = fd.get('start'), end = fd.get('end');
-  if (start >= end) { showToast('End time must be after start time.'); return; }
-  myDoc.overrides.push({
-    date: fd.get('date'), type: fd.get('type'), start, end, label: (fd.get('label') || '').trim(),
-  });
+  const endNextDay = type === 'busy' && fd.get('endNextDay') === 'on';
+  if (!endNextDay && start >= end) { showToast('End time must be after start time.'); return; }
+  const entry = { date: fd.get('date'), type, start, end, label: (fd.get('label') || '').trim() };
+  if (type === 'busy') {
+    entry.endNextDay = endNextDay;
+    if (fd.get('work') === 'on') entry.category = 'work';
+  }
+  myDoc.overrides.push(entry);
   e.target.reset();
   e.target.start.value = '09:00';
-  e.target.end.value = '17:00';
+  document.getElementById('ovEnd').value = '17:00';
   renderOverridesList();
   saveMyDoc();
   renderCombinedView();
@@ -177,12 +199,26 @@ function openShiftModal(date, seg) {
   const dateStr = formatDate(date);
   const root = document.getElementById('modalRoot');
 
-  // Overrides overlapping [rangeStart, rangeEnd) on this date, of the given type. Used so
-  // adding a shift removes any conflicting "available" hole (instead of the hole silently
-  // cancelling the new busy time back out), and so freeing a shift removes the override that
-  // caused it (instead of stacking a second, competing override on top).
-  const overlappingOverrides = (type, rangeStart, rangeEnd) => myDoc.overrides.filter(o =>
-    o.date === dateStr && o.type === type && timeToMin(o.start) < rangeEnd && timeToMin(o.end) > rangeStart);
+  const prevDateObj = new Date(date);
+  prevDateObj.setDate(prevDateObj.getDate() - 1);
+  const prevDateStr = formatDate(prevDateObj);
+
+  // Overrides of the given type overlapping [rangeStart, rangeEnd) on this date — including a
+  // previous-day override that spills into this date via "ends next day". Used so adding a
+  // shift removes any conflicting "available" hole (instead of the hole silently cancelling
+  // the new busy time back out), and so freeing a shift removes the override that caused it
+  // (instead of stacking a second, competing override on top).
+  const overlappingOverrides = (type, rangeStart, rangeEnd) => myDoc.overrides.filter(o => {
+    if (o.type !== type) return false;
+    if (o.date === dateStr) {
+      const effEnd = o.endNextDay ? 1440 : timeToMin(o.end);
+      return timeToMin(o.start) < rangeEnd && effEnd > rangeStart;
+    }
+    if (o.date === prevDateStr && o.endNextDay) {
+      return timeToMin(o.end) > rangeStart; // spillover always occupies [0, o.end) on `date`
+    }
+    return false;
+  });
   const removeOverrides = toRemove => { myDoc.overrides = myDoc.overrides.filter(o => !toRemove.includes(o)); };
 
   if (seg.type === 'free') {
@@ -195,7 +231,11 @@ function openShiftModal(date, seg) {
           <form id="shiftForm">
             <div class="field row">
               <div class="field" style="flex:1"><label>Start</label><input required type="time" name="start" value="${toTimeInput(seg.start)}" min="${toTimeInput(seg.start)}" max="${toTimeInput(seg.end)}" /></div>
-              <div class="field" style="flex:1"><label>End</label><input required type="time" name="end" value="${toTimeInput(Math.min(seg.end, seg.start + 480))}" min="${toTimeInput(seg.start)}" max="${toTimeInput(seg.end)}" /></div>
+              <div class="field" style="flex:1"><label>End</label><input required type="time" name="end" id="shiftEnd" value="${toTimeInput(Math.min(seg.end, seg.start + 480))}" min="${toTimeInput(seg.start)}" max="${toTimeInput(seg.end)}" /></div>
+            </div>
+            <div class="field row" style="flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="shiftEndNextDay" /> Ends next day</label>
+              <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="work" /> Work shift</label>
             </div>
             <div class="field"><label>Label</label><input name="label" maxlength="40" placeholder="e.g. Shift" /></div>
             <div class="field row" style="justify-content:flex-end">
@@ -207,15 +247,26 @@ function openShiftModal(date, seg) {
       </div>`;
     document.getElementById('cancelBtn').addEventListener('click', () => (root.innerHTML = ''));
     document.getElementById('backdrop').addEventListener('click', e => { if (e.target.id === 'backdrop') root.innerHTML = ''; });
+    const endInput = document.getElementById('shiftEnd');
+    // Once "ends next day" is checked, End is a time on the *next* date, so today's segment
+    // bounds no longer apply — drop the max (and reset it if unchecked again).
+    document.getElementById('shiftEndNextDay').addEventListener('change', e => {
+      if (e.target.checked) endInput.removeAttribute('max');
+      else endInput.max = toTimeInput(seg.end);
+    });
     document.getElementById('shiftForm').addEventListener('submit', e => {
       e.preventDefault();
       const fd = new FormData(e.target);
       const start = fd.get('start'), end = fd.get('end');
-      if (start >= end) { showToast('End time must be after start time.'); return; }
+      const endNextDay = document.getElementById('shiftEndNextDay').checked;
+      if (!endNextDay && start >= end) { showToast('End time must be after start time.'); return; }
       // Clear any "available" overrides covering this range first, so a previous "mark as
       // free" here doesn't immediately cancel the shift being added right back out.
-      removeOverrides(overlappingOverrides('available', timeToMin(start), timeToMin(end)));
-      myDoc.overrides.push({ date: dateStr, type: 'busy', start, end, label: (fd.get('label') || '').trim() });
+      const effEnd = endNextDay ? 1440 : timeToMin(end);
+      removeOverrides(overlappingOverrides('available', timeToMin(start), effEnd));
+      const entry = { date: dateStr, type: 'busy', start, end, endNextDay, label: (fd.get('label') || '').trim() };
+      if (fd.get('work') === 'on') entry.category = 'work';
+      myDoc.overrides.push(entry);
       root.innerHTML = '';
       renderMyScheduleTimeline();
       renderOverridesList();
