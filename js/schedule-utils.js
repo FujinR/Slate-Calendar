@@ -38,9 +38,10 @@ function mergeSameType(intervals) {
   return out;
 }
 
-// Subtract `holes` ranges from `ranges` ranges. Both are arrays of {start,end} in minutes.
+// Subtract `holes` ranges from `ranges` ranges. Both are arrays of {start,end,...} in minutes;
+// extra fields (label, category) on `ranges` are preserved through the split.
 function subtractRanges(ranges, holes) {
-  let result = ranges.map(r => ({ start: r.start, end: r.end }));
+  let result = ranges.map(r => ({ ...r }));
   for (const hole of holes) {
     const next = [];
     for (const r of result) {
@@ -48,8 +49,8 @@ function subtractRanges(ranges, holes) {
         next.push(r); // no overlap
         continue;
       }
-      if (hole.start > r.start) next.push({ start: r.start, end: Math.min(hole.start, r.end) });
-      if (hole.end < r.end) next.push({ start: Math.max(hole.end, r.start), end: r.end });
+      if (hole.start > r.start) next.push({ ...r, start: r.start, end: Math.min(hole.start, r.end) });
+      if (hole.end < r.end) next.push({ ...r, start: Math.max(hole.end, r.start), end: r.end });
     }
     result = next.filter(r => r.end > r.start);
   }
@@ -58,7 +59,7 @@ function subtractRanges(ranges, holes) {
 
 function clip(ranges, min, max) {
   return ranges
-    .map(r => ({ start: Math.max(r.start, min), end: Math.min(r.end, max) }))
+    .map(r => ({ ...r, start: Math.max(r.start, min), end: Math.min(r.end, max) }))
     .filter(r => r.end > r.start);
 }
 
@@ -91,25 +92,43 @@ export function getBusyIntervalsForDate(schedule, dateObj) {
   for (const block of weekly[todayKey] || []) {
     const start = timeToMin(block.start);
     const end = block.endNextDay ? 1440 : timeToMin(block.end);
-    if (end > start) busy.push({ start, end, label: block.label || '' });
+    if (end > start) busy.push({ start, end, label: block.label || '', category: block.category });
   }
 
   for (const block of weekly[prevKey] || []) {
     if (block.endNextDay) {
       const end = timeToMin(block.end);
-      if (end > 0) busy.push({ start: 0, end, label: block.label || '' });
+      if (end > 0) busy.push({ start: 0, end, label: block.label || '', category: block.category });
     }
   }
 
   busy = mergeSameType(busy);
 
   const dateStr = formatDate(dateObj);
-  const overrides = (schedule.overrides || []).filter(o => o.date === dateStr);
+  const prevDateObj = new Date(dateObj);
+  prevDateObj.setDate(prevDateObj.getDate() - 1);
+  const prevDateStr = formatDate(prevDateObj);
+  const allOverrides = schedule.overrides || [];
+  const todayOverrides = allOverrides.filter(o => o.date === dateStr);
+  const prevDayOverrides = allOverrides.filter(o => o.date === prevDateStr);
 
-  const extraBusy = overrides
+  const extraBusy = todayOverrides
     .filter(o => o.type === 'busy')
-    .map(o => ({ start: timeToMin(o.start), end: timeToMin(o.end), label: o.label || '' }));
-  const holes = overrides
+    .map(o => {
+      const start = timeToMin(o.start);
+      const end = o.endNextDay ? 1440 : timeToMin(o.end);
+      return { start, end, label: o.label || '', category: o.category };
+    })
+    .filter(iv => iv.end > iv.start);
+
+  for (const o of prevDayOverrides) {
+    if (o.type === 'busy' && o.endNextDay) {
+      const end = timeToMin(o.end);
+      if (end > 0) extraBusy.push({ start: 0, end, label: o.label || '', category: o.category });
+    }
+  }
+
+  const holes = todayOverrides
     .filter(o => o.type === 'available')
     .map(o => ({ start: timeToMin(o.start), end: timeToMin(o.end) }));
 
