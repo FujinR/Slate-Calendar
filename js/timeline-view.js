@@ -20,6 +20,23 @@ function isSameDate(a, b) {
 
 const HOUR_TICKS = [0, 6, 12, 18, 24];
 
+const BG_VAR_BY_TYPE = { busy: '--busy-bg', free: '--free-bg', mutual: '--mutual-bg' };
+
+// Paints the whole row as one continuous gradient instead of relying on the (transparent)
+// segment divs for color. Adjacent divs positioned via independently-rounded left/width
+// percentages can leave a sub-pixel gap at their shared edge on some zoom levels, which would
+// otherwise show the container's fallback background through as a stray sliver. A single
+// gradient has no seams to show through.
+function segmentsToGradient(segments) {
+  const stops = segments.map(seg => {
+    const color = `var(${BG_VAR_BY_TYPE[seg.type] || '--busy-bg'})`;
+    const startPct = (seg.start / 1440) * 100;
+    const endPct = (seg.end / 1440) * 100;
+    return `${color} ${startPct}% ${endPct}%`;
+  });
+  return `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
 export function renderHourTicks() {
   const wrap = document.createElement('div');
   wrap.className = 'hour-ticks';
@@ -53,6 +70,13 @@ export function renderWeekTimelines(container, days, { onSegmentClick, clickable
     const timeline = document.createElement('div');
     timeline.className = 'timeline';
 
+    // Segments + gradient live in a clipped inner wrapper so the rounded corners still cut
+    // them off cleanly; the now-marker below is appended to `timeline` directly (not `fill`)
+    // so its flag and tooltip aren't clipped when they extend above the row.
+    const fill = document.createElement('div');
+    fill.className = 'timeline-fill';
+    if (day.segments.length) fill.style.background = segmentsToGradient(day.segments);
+
     for (const seg of day.segments) {
       const el = document.createElement('div');
       el.className = `seg ${seg.type}`;
@@ -65,8 +89,9 @@ export function renderWeekTimelines(container, days, { onSegmentClick, clickable
         el.classList.add('clickable');
         el.addEventListener('click', () => onSegmentClick(day.date, seg));
       }
-      timeline.appendChild(el);
+      fill.appendChild(el);
     }
+    timeline.appendChild(fill);
 
     if (isSameDate(day.date, today)) {
       const nowMin = today.getHours() * 60 + today.getMinutes();
