@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard — When's Alex Free?</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div class="topbar">
+    <div>
+      <h1>Dashboard</h1>
+      <div class="sub" id="whoami"></div>
+    </div>
+    <div style="display:flex; gap:8px">
+      <a class="nav-link" href="index.html">Public calendar</a>
+      <button class="nav-link" id="logoutBtn" style="cursor:pointer">Log out</button>
+    </div>
+  </div>
+
+  <div id="demoBanner" class="banner" style="display:none">
+    Demo mode — showing sample data. Changes here aren't saved. Set up Firebase (see README.md) to use this for real.
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="schedule">My Schedule</button>
+    <button class="tab-btn" data-tab="combined">Combined View</button>
+    <button class="tab-btn" data-tab="requests">Requests</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
+  </div>
+
+  <!-- My Schedule -->
+  <div class="tab-panel" id="panel-schedule">
+    <div class="card">
+      <h3 style="margin-top:0">Weekly recurring shifts</h3>
+      <div class="helper-text">Add your regular busy blocks (e.g. work shifts). Everything else is assumed free. Check "ends next day" for overnight shifts.</div>
+      <br/>
+      <div id="weeklyEditor"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">One-off exceptions</h3>
+      <div class="helper-text">Add a specific date override — extra busy time, or mark yourself available during a normal shift (e.g. a day off).</div>
+      <br/>
+      <form id="overrideForm" style="margin-bottom:14px">
+        <div class="field row" style="flex-wrap:wrap">
+          <div class="field"><label>Date</label><input required type="date" name="date" /></div>
+          <div class="field">
+            <label>Type</label>
+            <select name="type"><option value="busy">Busy</option><option value="available">Available (time off)</option></select>
+          </div>
+          <div class="field"><label>Start</label><input required type="time" name="start" value="09:00" /></div>
+          <div class="field"><label>End</label><input required type="time" name="end" value="17:00" /></div>
+          <div class="field grow"><label>Label</label><input name="label" maxlength="40" placeholder="e.g. Doctor" /></div>
+          <button class="btn" type="submit">Add</button>
+        </div>
+      </form>
+      <div id="overridesList"></div>
+    </div>
+  </div>
+
+  <!-- Combined View -->
+  <div class="tab-panel" id="panel-combined" style="display:none">
+    <div class="card">
+      <div class="legend">
+        <span><span class="swatch busy"></span> Busy</span>
+        <span><span class="swatch free"></span> Free</span>
+        <span><span class="swatch mutual"></span> Both free (travel time already subtracted)</span>
+      </div>
+      <div class="week-nav">
+        <button id="cvPrevWeek">← Prev</button>
+        <span class="label" id="cvWeekLabel"></span>
+        <button id="cvThisWeek">This week</button>
+        <button id="cvNextWeek">Next →</button>
+      </div>
+      <div id="noPartnerNotice" class="banner" style="display:none">Link a partner account in Settings to see a combined view.</div>
+      <div id="combinedWrap">
+        <h4>You</h4>
+        <div id="hourTicksYou"></div>
+        <div id="timelineYou"></div>
+        <h4>Partner</h4>
+        <div id="hourTicksPartner"></div>
+        <div id="timelinePartner"></div>
+        <h4>Together</h4>
+        <div id="hourTicksMutual"></div>
+        <div id="timelineMutual"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Requests -->
+  <div class="tab-panel" id="panel-requests" style="display:none">
+    <div class="card">
+      <h3 style="margin-top:0">Incoming requests</h3>
+      <div id="requestsList"></div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div class="tab-panel" id="panel-settings" style="display:none">
+    <div class="card">
+      <h3 style="margin-top:0">Settings</h3>
+      <form id="settingsForm">
+        <div class="field">
+          <label>Display name</label>
+          <input name="displayName" maxlength="40" />
+        </div>
+        <div class="field row">
+          <input type="checkbox" name="public" id="publicToggle" />
+          <label for="publicToggle" style="margin:0">Make my schedule visible on the public calendar page</label>
+        </div>
+        <div class="helper-text">Only meaningful for the account whose UID matches OWNER_UID in js/site-config.js.</div>
+        <br/>
+        <div class="field">
+          <label>Partner's UID (from Firebase Authentication → Users)</label>
+          <input name="partnerUid" maxlength="120" />
+        </div>
+        <div class="field">
+          <label>Travel time buffer (minutes)</label>
+          <input type="number" name="travelBufferMinutes" min="0" max="600" />
+        </div>
+        <div class="helper-text">Used in Combined View to shrink "both free" windows by the time it takes one of you to travel to the other.</div>
+        <br/>
+        <button class="btn" type="submit">Save settings</button>
+        <span id="settingsSaved" class="helper-text" style="display:none">Saved!</span>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="toastRoot"></div>
+
+<script type="module" src="js/dashboard.js"></script>
+</body>
+</html>

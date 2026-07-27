@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>When's Alex Free?</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <div class="topbar">
+    <div>
+      <h1 id="siteTitle">Loading…</h1>
+      <div class="sub">Public availability — pick an open time and send a request</div>
+    </div>
+    <a class="nav-link" href="login.html">Owner / partner login</a>
+  </div>
+
+  <div id="demoBanner" class="banner" style="display:none">
+    Demo mode — showing sample data. Set up Firebase (see README.md) to make this your real calendar.
+  </div>
+
+  <div id="unavailableBanner" class="banner" style="display:none">
+    This calendar isn't public right now.
+  </div>
+
+  <div class="card">
+    <div class="legend">
+      <span><span class="swatch busy"></span> Busy</span>
+      <span><span class="swatch free"></span> Free — click to request</span>
+    </div>
+    <div class="week-nav">
+      <button id="prevWeek">← Prev</button>
+      <span class="label" id="weekLabel"></span>
+      <button id="thisWeek">This week</button>
+      <button id="nextWeek">Next →</button>
+    </div>
+    <div id="hourTicks"></div>
+    <div id="timelineContainer"></div>
+  </div>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script type="module" src="js/guest.js"></script>
+</body>
+</html>
