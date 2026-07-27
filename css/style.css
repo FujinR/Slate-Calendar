@@ -12,7 +12,7 @@
   --free-bg: #e2f6ec;
   --mutual: #9b59f6;
   --mutual-bg: #ece2fd;
-  --now: #ff2f92;
+  --now: ##FFC43D;
   --warn-bg: #fff6da;
   --warn-border: #f0d878;
   --radius: 10px;
@@ -34,7 +34,7 @@
     --free-bg: #1d3329;
     --mutual: #b98af9;
     --mutual-bg: #2e2440;
-    --now: #ff5eb0;
+    --now: #FFC43D;
     --warn-bg: #3a3320;
     --warn-border: #8a7a2e;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
