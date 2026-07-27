@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Dashboard — Slate 1.1</title>
+<title>Dashboard — Slate 1.0</title>
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -36,6 +36,12 @@
       <h3 style="margin-top:0">Your shifts</h3>
       <div class="helper-text">Click a free block to add a shift, or a busy block to free it up. Best for schedules that change week to week.</div>
       <br/>
+      <div class="legend">
+        <span><span class="swatch busy"></span> Busy</span>
+        <span><span class="swatch work"></span> Work</span>
+        <span><span class="swatch free"></span> Free</span>
+        <span><span class="swatch now"></span> Now</span>
+      </div>
       <div class="week-nav">
         <button id="msPrevWeek">← Prev</button>
         <span class="label" id="msWeekLabel"></span>
@@ -58,9 +64,13 @@
             <select name="type"><option value="busy">Busy</option><option value="available">Available (time off)</option></select>
           </div>
           <div class="field"><label>Start</label><input required type="time" name="start" value="09:00" /></div>
-          <div class="field"><label>End</label><input required type="time" name="end" value="17:00" /></div>
+          <div class="field"><label>End</label><input required type="time" name="end" value="17:00" id="ovEnd" /></div>
           <div class="field grow"><label>Label</label><input name="label" maxlength="40" placeholder="e.g. Doctor" /></div>
-          <button class="btn" type="submit">Add</button>
+        </div>
+        <div class="field row" style="flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:4px"><input type="checkbox" name="endNextDay" id="ovEndNextDay" /> Ends next day</label>
+          <label style="display:flex;align-items:center;gap:4px" id="ovWorkLabel"><input type="checkbox" name="work" /> Work shift</label>
+          <button class="btn" type="submit" style="margin-left:auto">Add</button>
         </div>
       </form>
       <div id="overridesList"></div>
@@ -80,6 +90,7 @@
         <span><span class="swatch busy"></span> Busy</span>
         <span><span class="swatch free"></span> Free</span>
         <span><span class="swatch mutual"></span> Both free (travel time already subtracted)</span>
+        <span><span class="swatch work"></span> Work</span>
         <span><span class="swatch now"></span> Now</span>
       </div>
       <div class="week-nav">
