@@ -1,13 +1,14 @@
 import { DEMO_MODE, getFirebase } from './firebase-config.js';
 import { OWNER_UID } from './site-config.js';
 import { DEMO_OWNER, DEMO_PARTNER, DEMO_REQUESTS } from './demo-data.js';
-import { DAY_KEYS, DAY_LABELS, getBusyIntervalsForDate, getFreeIntervalsForDate, getMutualFreeForDate, applyTravelBuffer } from './schedule-utils.js';
+import { DAY_KEYS, DAY_LABELS, getBusyIntervalsForDate, getFreeIntervalsForDate, getMutualFreeForDate, applyTravelBuffer, formatDate, minutesToLabel } from './schedule-utils.js';
 import { startOfWeek, buildWeekDates, renderWeekTimelines, renderHourTicks, weekRangeLabel } from './timeline-view.js';
 
 let currentUid = null;
 let myDoc = null;
 let partnerDoc = null;
 let cvWeekStart = startOfWeek(new Date());
+let msWeekStart = startOfWeek(new Date());
 let demoRequests = DEMO_REQUESTS.map(r => ({ ...r }));
 
 function defaultScheduleDoc(displayName) {
@@ -90,6 +91,7 @@ function renderWeeklyEditor() {
     renderWeeklyEditor();
     saveMyDoc();
     renderCombinedView();
+    renderMyScheduleTimeline();
   }));
 
   container.querySelectorAll('.b-del').forEach(btn => btn.addEventListener('click', () => {
@@ -98,13 +100,14 @@ function renderWeeklyEditor() {
     renderWeeklyEditor();
     saveMyDoc();
     renderCombinedView();
+    renderMyScheduleTimeline();
   }));
 
   container.querySelectorAll('.block-row').forEach(row => {
     const block = myDoc.weekly[row.dataset.day][row.dataset.idx];
-    row.querySelector('.b-start').addEventListener('change', e => { block.start = e.target.value; saveMyDoc(); renderCombinedView(); });
-    row.querySelector('.b-end').addEventListener('change', e => { block.end = e.target.value; saveMyDoc(); renderCombinedView(); });
-    row.querySelector('.b-next').addEventListener('change', e => { block.endNextDay = e.target.checked; saveMyDoc(); renderCombinedView(); });
+    row.querySelector('.b-start').addEventListener('change', e => { block.start = e.target.value; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
+    row.querySelector('.b-end').addEventListener('change', e => { block.end = e.target.value; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
+    row.querySelector('.b-next').addEventListener('change', e => { block.endNextDay = e.target.checked; saveMyDoc(); renderCombinedView(); renderMyScheduleTimeline(); });
     row.querySelector('.b-label').addEventListener('change', e => { block.label = e.target.value; saveMyDoc(); });
   });
 }
@@ -127,6 +130,7 @@ function renderOverridesList() {
     renderOverridesList();
     saveMyDoc();
     renderCombinedView();
+    renderMyScheduleTimeline();
   }));
 }
 
@@ -144,6 +148,116 @@ document.getElementById('overrideForm').addEventListener('submit', e => {
   renderOverridesList();
   saveMyDoc();
   renderCombinedView();
+  renderMyScheduleTimeline();
+});
+
+// ---------- My Schedule timeline (click-to-edit, for rotating shifts) ----------
+function renderMyScheduleTimeline() {
+  document.getElementById('msWeekLabel').textContent = weekRangeLabel(msWeekStart);
+  const ticks = document.getElementById('msHourTicks');
+  ticks.innerHTML = '';
+  ticks.appendChild(renderHourTicks());
+
+  const days = buildWeekDates(msWeekStart).map(date => ({ date, segments: daySegments(myDoc, date) }));
+  renderWeekTimelines(document.getElementById('msTimelineContainer'), days, {
+    onSegmentClick: (date, seg) => openShiftModal(date, seg),
+    clickableTypes: ['free', 'busy'],
+  });
+}
+
+function openShiftModal(date, seg) {
+  // Clamped to 23:59 for <input type=time>, which can't represent 24:00.
+  const toTimeInput = m => {
+    const clamped = Math.min(m, 1439);
+    return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+  };
+  // Unclamped — for writing the exact segment bounds into an override (no <input> involved).
+  const rawTimeStr = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const endLabel = seg.end >= 1440 ? '11:59PM' : minutesToLabel(seg.end);
+  const dateStr = formatDate(date);
+  const root = document.getElementById('modalRoot');
+
+  if (seg.type === 'free') {
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Add a shift</h3>
+          <div class="helper-text">${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} · currently free ${minutesToLabel(seg.start)}–${endLabel}</div>
+          <br/>
+          <form id="shiftForm">
+            <div class="field row">
+              <div class="field" style="flex:1"><label>Start</label><input required type="time" name="start" value="${toTimeInput(seg.start)}" min="${toTimeInput(seg.start)}" max="${toTimeInput(seg.end)}" /></div>
+              <div class="field" style="flex:1"><label>End</label><input required type="time" name="end" value="${toTimeInput(Math.min(seg.end, seg.start + 480))}" min="${toTimeInput(seg.start)}" max="${toTimeInput(seg.end)}" /></div>
+            </div>
+            <div class="field"><label>Label</label><input name="label" maxlength="40" placeholder="e.g. Shift" /></div>
+            <div class="field row" style="justify-content:flex-end">
+              <button type="button" class="btn secondary" id="cancelBtn">Cancel</button>
+              <button type="submit" class="btn">Add shift</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+    document.getElementById('cancelBtn').addEventListener('click', () => (root.innerHTML = ''));
+    document.getElementById('backdrop').addEventListener('click', e => { if (e.target.id === 'backdrop') root.innerHTML = ''; });
+    document.getElementById('shiftForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const start = fd.get('start'), end = fd.get('end');
+      if (start >= end) { showToast('End time must be after start time.'); return; }
+      myDoc.overrides.push({ date: dateStr, type: 'busy', start, end, label: (fd.get('label') || '').trim() });
+      root.innerHTML = '';
+      renderMyScheduleTimeline();
+      renderOverridesList();
+      saveMyDoc();
+      renderCombinedView();
+    });
+  } else {
+    root.innerHTML = `
+      <div class="modal-backdrop" id="backdrop">
+        <div class="modal">
+          <h3>Free up this time?</h3>
+          <div class="helper-text">${date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })} · currently busy ${minutesToLabel(seg.start)}–${endLabel}${seg.label ? ' · ' + seg.label : ''}</div>
+          <br/>
+          <div class="field row" style="justify-content:flex-end">
+            <button type="button" class="btn secondary" id="cancelBtn">Cancel</button>
+            <button type="button" class="btn" id="freeBtn">Mark as free</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('cancelBtn').addEventListener('click', () => (root.innerHTML = ''));
+    document.getElementById('backdrop').addEventListener('click', e => { if (e.target.id === 'backdrop') root.innerHTML = ''; });
+    document.getElementById('freeBtn').addEventListener('click', () => {
+      myDoc.overrides.push({ date: dateStr, type: 'available', start: rawTimeStr(seg.start), end: rawTimeStr(seg.end), label: '' });
+      root.innerHTML = '';
+      renderMyScheduleTimeline();
+      renderOverridesList();
+      saveMyDoc();
+      renderCombinedView();
+    });
+  }
+}
+
+document.getElementById('msPrevWeek').addEventListener('click', () => { msWeekStart.setDate(msWeekStart.getDate() - 7); renderMyScheduleTimeline(); });
+document.getElementById('msNextWeek').addEventListener('click', () => { msWeekStart.setDate(msWeekStart.getDate() + 7); renderMyScheduleTimeline(); });
+document.getElementById('msThisWeek').addEventListener('click', () => { msWeekStart = startOfWeek(new Date()); renderMyScheduleTimeline(); });
+
+document.getElementById('msCopyWeek').addEventListener('click', () => {
+  const weekDates = buildWeekDates(msWeekStart).map(d => formatDate(d));
+  const thisWeeksOverrides = myDoc.overrides.filter(o => weekDates.includes(o.date));
+  if (!thisWeeksOverrides.length) { showToast('No entries this week to copy.'); return; }
+  let added = 0;
+  for (const o of thisWeeksOverrides) {
+    const nextDate = new Date(o.date + 'T00:00:00');
+    nextDate.setDate(nextDate.getDate() + 7);
+    const nextDateStr = formatDate(nextDate);
+    const exists = myDoc.overrides.some(x => x.date === nextDateStr && x.start === o.start && x.end === o.end && x.type === o.type);
+    if (!exists) { myDoc.overrides.push({ ...o, date: nextDateStr }); added++; }
+  }
+  renderMyScheduleTimeline();
+  renderOverridesList();
+  saveMyDoc();
+  renderCombinedView();
+  showToast(`Copied ${added} entr${added === 1 ? 'y' : 'ies'} to next week.`);
 });
 
 // ---------- Settings ----------
@@ -254,6 +368,7 @@ async function updateRequest(id, status) {
       myDoc.overrides.push({ date: r.date, type: 'busy', start: r.start, end: r.end, label: 'Request: ' + r.name });
       renderOverridesList();
       renderCombinedView();
+      renderMyScheduleTimeline();
     }
     renderRequests();
     return;
@@ -269,6 +384,7 @@ async function updateRequest(id, status) {
       myDoc.overrides.push(entry);
       renderOverridesList();
       renderCombinedView();
+      renderMyScheduleTimeline();
     }
   }
   renderRequests();
@@ -288,6 +404,7 @@ function initAll() {
   renderOverridesList();
   renderSettingsForm();
   renderCombinedView();
+  renderMyScheduleTimeline();
   renderRequests();
 }
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Dashboard — When's Alex Free?</title>
+<title>Dashboard — Slate 1.0</title>
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -24,23 +24,31 @@
   </div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="schedule">My Schedule</button>
-    <button class="tab-btn" data-tab="combined">Combined View</button>
+    <button class="tab-btn" data-tab="schedule">My Schedule</button>
+    <button class="tab-btn active" data-tab="combined">Combined View</button>
     <button class="tab-btn" data-tab="requests">Requests</button>
     <button class="tab-btn" data-tab="settings">Settings</button>
   </div>
 
   <!-- My Schedule -->
-  <div class="tab-panel" id="panel-schedule">
+  <div class="tab-panel" id="panel-schedule" style="display:none">
     <div class="card">
-      <h3 style="margin-top:0">Weekly recurring shifts</h3>
-      <div class="helper-text">Add your regular busy blocks (e.g. work shifts). Everything else is assumed free. Check "ends next day" for overnight shifts.</div>
+      <h3 style="margin-top:0">Your shifts</h3>
+      <div class="helper-text">Click a free block to add a shift, or a busy block to free it up. Best for schedules that change week to week.</div>
       <br/>
-      <div id="weeklyEditor"></div>
+      <div class="week-nav">
+        <button id="msPrevWeek">← Prev</button>
+        <span class="label" id="msWeekLabel"></span>
+        <button id="msThisWeek">This week</button>
+        <button id="msNextWeek">Next →</button>
+        <button class="btn secondary small" id="msCopyWeek" style="margin-left:auto">Copy this week → next week</button>
+      </div>
+      <div id="msHourTicks"></div>
+      <div id="msTimelineContainer"></div>
     </div>
     <div class="card">
-      <h3 style="margin-top:0">One-off exceptions</h3>
-      <div class="helper-text">Add a specific date override — extra busy time, or mark yourself available during a normal shift (e.g. a day off).</div>
+      <h3 style="margin-top:0">All entries</h3>
+      <div class="helper-text">Everything you've added above, in one list. You can also add or remove entries directly here.</div>
       <br/>
       <form id="overrideForm" style="margin-bottom:14px">
         <div class="field row" style="flex-wrap:wrap">
@@ -57,10 +65,16 @@
       </form>
       <div id="overridesList"></div>
     </div>
+    <details class="card">
+      <summary style="cursor:pointer;font-weight:600">Recurring pattern (optional — only if some shifts repeat every week)</summary>
+      <div class="helper-text" style="margin-top:8px">Add a block here only if it truly happens the same time every week. If your schedule rotates, use "Your shifts" above instead.</div>
+      <br/>
+      <div id="weeklyEditor"></div>
+    </details>
   </div>
 
   <!-- Combined View -->
-  <div class="tab-panel" id="panel-combined" style="display:none">
+  <div class="tab-panel" id="panel-combined">
     <div class="card">
       <div class="legend">
         <span><span class="swatch busy"></span> Busy</span>
@@ -128,6 +142,7 @@
   </div>
 </div>
 
+<div id="modalRoot"></div>
 <div id="toastRoot"></div>
 
 <script type="module" src="js/dashboard.js"></script>

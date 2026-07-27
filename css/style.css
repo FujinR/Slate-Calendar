@@ -178,17 +178,15 @@ a { color: var(--accent); }
   background: var(--free-bg);
   border-left: 2px solid var(--free);
   border-right: 2px solid var(--free);
-  cursor: pointer;
 }
-.timeline .seg.free:hover { filter: brightness(0.92); }
 .timeline .seg.busy { background: var(--busy-bg); }
 .timeline .seg.mutual {
   background: var(--mutual-bg);
   border-left: 2px solid var(--mutual);
   border-right: 2px solid var(--mutual);
-  cursor: pointer;
 }
-.timeline .seg.mutual:hover { filter: brightness(0.92); }
+.timeline .seg.clickable { cursor: pointer; }
+.timeline .seg.clickable:hover { filter: brightness(0.92); }
 .timeline .now-marker {
   position: absolute;
   top: -2px;

@@ -38,7 +38,7 @@ export function renderHourTicks() {
  * 'busy' | 'free' | 'mutual'. Segments should already be non-overlapping and cover [0,1440).
  * `onSegmentClick(date, segment)` fires when a clickable (free/mutual) segment is clicked.
  */
-export function renderWeekTimelines(container, days, { onSegmentClick } = {}) {
+export function renderWeekTimelines(container, days, { onSegmentClick, clickableTypes = ['free', 'mutual'] } = {}) {
   container.innerHTML = '';
   const today = new Date();
 
@@ -61,7 +61,8 @@ export function renderWeekTimelines(container, days, { onSegmentClick } = {}) {
       const endLabel = seg.end >= 1440 ? '11:59PM' : minutesToLabel(seg.end);
       const label = `${minutesToLabel(seg.start)} – ${endLabel}${seg.label ? ' · ' + seg.label : ''}`;
       el.title = label;
-      if ((seg.type === 'free' || seg.type === 'mutual') && onSegmentClick) {
+      if (clickableTypes.includes(seg.type) && onSegmentClick) {
+        el.classList.add('clickable');
         el.addEventListener('click', () => onSegmentClick(day.date, seg));
       }
       timeline.appendChild(el);
