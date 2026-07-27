@@ -3,4 +3,4 @@
 // See README.md for full setup steps.
 export const OWNER_UID = "xscAlB9iUGf04emp3wXMVwBL4d23";
 
-export const SITE_NAME = "Slate 1.0"; // change to your own name/title
+export const SITE_NAME = "Slate 1.1"; // change to your own name/title
