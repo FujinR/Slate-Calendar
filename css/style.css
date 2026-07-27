@@ -139,6 +139,7 @@ a { color: var(--accent); }
 .swatch.busy { background: var(--busy); }
 .swatch.free { background: var(--free); }
 .swatch.mutual { background: var(--mutual); }
+.swatch.now { width: 3px; height: 14px; border-radius: 0; background: var(--accent); }
 
 .day-row {
   display: grid;
@@ -170,30 +171,44 @@ a { color: var(--accent); }
 }
 
 .timeline .seg {
+  /* Transparent: color comes from the .timeline's own gradient background (set inline per
+     row), not from these boxes — a single gradient can't have the seams that independently
+     rounded, separately-positioned boxes can. These divs exist only for hit-testing, the
+     hover cue, tooltips, and the free/mutual accent borders. */
   position: absolute;
   top: 0;
   bottom: 0;
+  background: transparent;
 }
 .timeline .seg.free {
-  background: var(--free-bg);
   border-left: 2px solid var(--free);
   border-right: 2px solid var(--free);
 }
-.timeline .seg.busy { background: var(--busy-bg); }
 .timeline .seg.mutual {
-  background: var(--mutual-bg);
   border-left: 2px solid var(--mutual);
   border-right: 2px solid var(--mutual);
 }
 .timeline .seg.clickable { cursor: pointer; }
-.timeline .seg.clickable:hover { filter: brightness(0.92); }
+.timeline .seg.clickable:hover { background: rgba(0, 0, 0, 0.08); }
 .timeline .now-marker {
   position: absolute;
-  top: -2px;
+  top: -5px;
   bottom: -2px;
   width: 2px;
-  background: var(--text);
-  opacity: 0.5;
+  background: var(--accent);
+  pointer-events: none;
+}
+.timeline .now-marker::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--accent);
 }
 
 .hour-ticks {
