@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Paste these into Firebase console → Firestore Database → Rules. See README.md.
+//
+// Trust model: this app is built for exactly two account holders (you + your partner).
+// Any authenticated user is trusted to read/write both schedules and manage requests —
+// there's no public sign-up, so "authenticated" effectively means "one of you two".
+// The public (unauthenticated) guest page can only read a schedule doc that has
+// explicitly opted in with `public: true`, and can only create pending requests.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /schedules/{uid} {
+      allow read: if resource.data.get('public', false) == true || request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    match /requests/{requestId} {
+      allow read, update, delete: if request.auth != null;
+
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.ownerUid is string
+                    && request.resource.data.date is string
+                    && request.resource.data.start is string
+                    && request.resource.data.end is string
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 60
+                    && request.resource.data.contact is string
+                    && request.resource.data.contact.size() > 0
+                    && request.resource.data.contact.size() <= 120
+                    && (!('note' in request.resource.data)
+                        || (request.resource.data.note is string && request.resource.data.note.size() <= 300));
+    }
+  }
+}
